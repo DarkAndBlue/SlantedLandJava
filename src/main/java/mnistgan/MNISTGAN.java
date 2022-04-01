@@ -28,7 +28,7 @@ public class MNISTGAN extends JFrame {
     setVisible(true);
     setLocationRelativeTo(null);
     
-    while(true) {
+    while (true) {
       scene.repaint();
     }
   }
@@ -42,14 +42,14 @@ public class MNISTGAN extends JFrame {
     Generator generator;
     List<Double> discriminatorErrors = new ArrayList<>();
     List<Double> generatorErrors = new ArrayList<>();
-  
+    
     public Scene() {
       discriminator = new Discriminator();
       generator = new Generator();
       
       setDoubleBuffered(true);
     }
-  
+    
     BufferedImage drawingImage = new BufferedImage(imageSize, imageSize, BufferedImage.TYPE_INT_RGB);
     int maxErrorSampleSize = 3000;
     
@@ -57,9 +57,9 @@ public class MNISTGAN extends JFrame {
       super.paint(graphics);
       updateNeuralNetworks();
       
-      double input = 0.4;
+      double input = Math.random();
       Vector forward = generator.forward(input);
-  
+      
       for (int x = 0; x < imageSize; x++) {
         for (int y = 0; y < imageSize; y++) {
           int i = x + y * imageSize;
@@ -68,16 +68,16 @@ public class MNISTGAN extends JFrame {
         }
       }
       graphics.drawImage(drawingImage, 0, 0, getWidth() / 3, getHeight(), null);
-  
-      graphics.setColor(Color.blue);
-      drawList(graphics, generatorErrors, getWidth() / 3, 0.1);
-      graphics.setColor(Color.red);
-      drawList(graphics, discriminatorErrors, getWidth() / 3 * 2, 5);
       
-      while(generatorErrors.size() > maxErrorSampleSize)
+      graphics.setColor(Color.blue);
+      drawList(graphics, generatorErrors, getWidth() / 3, 0.05);
+      graphics.setColor(Color.red);
+      drawList(graphics, discriminatorErrors, getWidth() / 3 * 2, 0.01);
+      
+      while (generatorErrors.size() > maxErrorSampleSize)
         generatorErrors.remove(0);
-  
-      while(discriminatorErrors.size() > maxErrorSampleSize)
+      
+      while (discriminatorErrors.size() > maxErrorSampleSize)
         discriminatorErrors.remove(0);
     }
     
@@ -87,14 +87,14 @@ public class MNISTGAN extends JFrame {
       
       int[] x = new int[list.size()];
       int[] y = new int[list.size()];
-  
+      
       for (int i = 0; i < list.size(); i++) {
         double value = list.get(i);
         
         x[i] = (int) (i * sizeX) + xOffset;
         y[i] = (int) ((value - yOffset) / yScale) + getHeight() / 2;
       }
-  
+      
       graphics.drawPolyline(x, y, x.length);
     }
     
@@ -111,24 +111,23 @@ public class MNISTGAN extends JFrame {
         Vector target = generateTarget();
         // train the discriminator on real images
         discriminator.trainOnTarget(target);
-    
+        
         // Pick a random number to generate a fake face
         double noise = random.nextGaussian();
-    
+        
         // Calculate the discriminator error
-        double targetPrediction = discriminator.predictionTarget(target);
-        Vector combined = discriminator.predictionNoise(noise).add(targetPrediction);
-        discriminatorErrors.add(combined.sum());
-    
+        double targetPrediction = discriminator.calculateError(target, noise, generator);
+        discriminatorErrors.add(targetPrediction);
+        
         // Calculate the generator error
         generatorErrors.add(generator.calculateError(noise, discriminator));
-    
+        
         // Build a fake face
         Vector generated = generator.forward(noise);
-    
+        
         // Update the discriminator weights from the fake face
         discriminator.trainOnFake(generated);
-    
+        
         // Update the generator weights from the fake face
         generator.train(noise, discriminator);
       }
@@ -163,24 +162,10 @@ public class MNISTGAN extends JFrame {
         weights = Vector.randomized(imageSize * imageSize);
         bias = random.nextGaussian();
       }
-      
-      Vector forwardNoise(double noise) {
-        // Forward pass
-        Vector a = weights.dot(noise);
-        a = a.add(bias);
-        return a.sigmoid();
-      }
-      
-      @Deprecated
+  
+      // Forward pass
       double forward(Vector x) {
-        // Forward pass
         return sigmoid(x.dot(weights) + bias);
-      }
-      
-      double predictionTarget(Vector target) {
-        double prediction = forward(target);
-        // We want the prediction to be 1, so the error is -log(prediction)
-        return -Math.log(prediction);
       }
       
       void trainOnTarget(Vector targets) {
@@ -193,12 +178,6 @@ public class MNISTGAN extends JFrame {
         bias -= learning_rate * derivative_bias;
       }
       
-      // We want the prediction to be 0, so the error is -log(1-prediction)
-      Vector predictionNoise(double noise) {
-        Vector prediction = forwardNoise(noise);
-        return prediction.subtractReverse(1).log().inverse();
-      }
-      
       void trainOnFake(Vector generated) {
         // prediction on how real the generated image is
         double prediction = forward(generated);
@@ -208,6 +187,14 @@ public class MNISTGAN extends JFrame {
         
         weights = weights.subtract(derivatives_weights.multiply(learning_rate));
         bias -= learning_rate * derivative_bias;
+      }
+      
+      public double calculateError(Vector target, double noise, Generator generator) {
+        Vector generated = generator.forward(noise);
+        double predictionFake = forward(generated);
+        double predictionReal = 1 - forward(target);
+        
+        return predictionReal + predictionFake;
       }
     }
     
@@ -221,15 +208,15 @@ public class MNISTGAN extends JFrame {
       }
       
       // Forward pass
-      Vector forward(double z) {
-        Vector z_weights = weights.multiply(z).add(biases);
+      Vector forward(double noise) {
+        Vector z_weights = weights.multiply(noise).add(biases);
         return z_weights.sigmoid();
       }
       
       // We want the prediction to be 0, so the error is -log(1-prediction)
       double calculateError(double z, Discriminator discriminator) {
-        Vector x = forward(z);
-        double y = discriminator.forward(x);
+        Vector generated = forward(z);
+        double y = discriminator.forward(generated);
         return -Math.log(y);
       }
       
