@@ -50,9 +50,9 @@ public class SlantedLandRefactored {
         
         errors_generator.add(g.error(z, d));
         
-        double[] noise = g.forward(z);
+        Vector noise = g.forward(z);
         
-        d.update_from_noise(new Vector(noise));
+        d.update_from_noise(noise);
         
         g.update(z, d);
       }
@@ -138,62 +138,47 @@ public class SlantedLandRefactored {
   }
   
   static class Generator {
-    double[] weights;
-    double[] biases;
+    Vector weights;
+    Vector biases;
     
     public Generator() {
-      weights = new double[4];
-      for (int i = 0; i < weights.length; i++) {
-        weights[i] = rand.nextGaussian();
-      }
-      biases = new double[4];
-      for (int i = 0; i < biases.length; i++) {
-        biases[i] = rand.nextGaussian();
-      }
+      weights = Vector.randomized(4);
+      biases = Vector.randomized(4);
     }
-    
-    double[] forward(double z) {
-      double[] z_weights = new double[4];
-      for (int i = 0; i < z_weights.length; i++) {
-        z_weights[i] = z * weights[i] + biases[i];
-      }
-      return Numpy.sigmoid(z_weights);
+  
+    Vector forward(double z) {
+      Vector z_weights = weights.multiply(z).add(biases);
+      return z_weights.sigmoid();
     }
     
     double error(double z, Discriminator discriminator) {
-      double[] x = forward(z);
-      double y = discriminator.forward(new Vector(x));
+      Vector x = forward(z);
+      double y = discriminator.forward(x);
       return -Math.log(y);
     }
     
     Object[] derivatives(double z, Discriminator discriminator) {
       double[] discriminator_weights = discriminator.weights;
-      double[] x = forward(z);
-      double y = discriminator.forward(new Vector(x));
+      Vector x = forward(z);
+      double y = discriminator.forward(x);
       
       double a = -(1 - y);
-      double[] b = Numpy.multiply(a, discriminator_weights);
-      b = Numpy.multiply(b, x);
-      double[] factor = Numpy.multiply(b, Numpy.subtractReverse(1, x));
-      
-      double[] derivatives_weights = new double[4];
-      for (int i = 0; i < derivatives_weights.length; i++) {
-        derivatives_weights[i] = factor[i] * z;
-      }
-      double[] derivative_bias = factor;
+      Vector b = new Vector(Numpy.multiply(a, discriminator_weights));
+      b = b.multiply(x);
+      Vector factor = b.multiply(x.subtractReverse(1));
+  
+      Vector derivatives_weights = factor.multiply(z);
+      Vector derivative_bias = factor;
       return new Object[] { derivatives_weights, derivative_bias };
     }
     
     void update(double z, Discriminator discriminator) {
       Object[] ders = derivatives(z, discriminator);
-      double[] derivatives_weights = (double[]) ders[0];
-      double[] derivative_bias = (double[]) ders[1];
-      for (int i = 0; i < weights.length; i++) {
-        weights[i] -= learning_rate * derivatives_weights[i];
-      }
-      for (int i = 0; i < weights.length; i++) {
-        biases[i] -= learning_rate * derivative_bias[i];
-      }
+      Vector derivatives_weights = (Vector) ders[0];
+      Vector derivative_bias = (Vector) ders[1];
+      
+      weights = weights.subtract(derivatives_weights.multiply(learning_rate));
+      biases = biases.subtract(derivative_bias.multiply(learning_rate));
     }
   }
 }

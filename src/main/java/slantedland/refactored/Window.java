@@ -55,7 +55,7 @@ class Window extends JPanel {
           for (int x = 0; x < SAMPLES_PER_ROW; x++) {
             for (int y = 0; y < SAMPLES_PER_ROW; y++) {
               double z = random.nextGaussian();
-              double[] generated_image = generatorInstance.forward(z);
+              double[] generated_image = generatorInstance.forward(z).data;
               int[] pixels = doubleValuesToPixels(generated_image);
               
               BufferedImage image = new BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB);
