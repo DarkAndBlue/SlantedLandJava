@@ -53,7 +53,7 @@ public class SlantedLandRefactored {
     }
     
     // Create a window to show error rate and samples
-    new Window(generator, errors_discriminator, errors_generator);
+//    new Window(generator, errors_discriminator, errors_generator);
   }
   
   static class Discriminator {

@@ -12,12 +12,12 @@ class Window extends JPanel {
     private final static Font FONT = new Font("Arial", Font.BOLD, 20);
     private final static int SAMPLES_PER_ROW = 3;
     private final static int SAMPLE_PADDING = 10;
-    SlantedLandRefactored.Generator generatorInstance;
+  SlantedLandOwn.Generator generatorInstance;
     List<Double> errors_discriminator;
     List<Double> errors_generator;
     Random random = new Random();
     
-    public Window(SlantedLandRefactored.Generator generatorInstance, List<Double> errors_discriminator, List<Double> errors_generator) {
+    public Window(SlantedLandOwn.Generator generatorInstance, List<Double> errors_discriminator, List<Double> errors_generator) {
       this.generatorInstance = generatorInstance;
       this.errors_discriminator = errors_discriminator;
       this.errors_generator = errors_generator;
