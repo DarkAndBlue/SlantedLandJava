@@ -106,13 +106,13 @@ public class Vector {
     return new Vector(result);
   }
   
-  public Vector subtract(Vector derivatives_weights) {
-    if (data.length != derivatives_weights.data.length)
-      throw new RuntimeException("Length of arrays doesn't match! " + data.length + " != " + derivatives_weights.data.length);
+  public Vector subtract(Vector other) {
+    if (data.length != other.data.length)
+      throw new RuntimeException("Length of arrays doesn't match! " + data.length + " != " + other.data.length);
     
     double[] newData = new double[data.length];
     for (int i = 0; i < data.length; i++) {
-      newData[i] = data[i] - derivatives_weights.data[i];
+      newData[i] = data[i] - other.data[i];
     }
     
     return new Vector(newData);

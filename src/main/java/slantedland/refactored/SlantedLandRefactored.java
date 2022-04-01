@@ -9,6 +9,7 @@ public class SlantedLandRefactored {
   static int epochs = 1000;
   static double learning_rate = 0.01;
   
+  // real samples
   static Vector[] faces = {
     new Vector(1, 0, 0, 1),
     new Vector(0.9, 0.1, 0.2, 0.8),
@@ -16,96 +17,93 @@ public class SlantedLandRefactored {
     new Vector(0.8, 0.1, 0.2, 0.9),
     new Vector(0.8, 0.2, 0.1, 0.9)
   };
-  static double[][][] noise = new double[20][][];
   
   public static void main(String[] args) {
-    for (int i = 0; i < 20; i++) {
-      noise[i] = new double[2][2];
-      for (int j = 0; j < 2; j++) {
-        for (int k = 0; k < 2; k++) {
-          noise[i][j][k] = rand.nextGaussian();
-        }
-      }
-    }
-    
-    Discriminator d = new Discriminator();
-    Generator g = new Generator();
+    Discriminator discriminator = new Discriminator();
+    Generator generator = new Generator();
     
     List<Double> errors_discriminator = new ArrayList<>();
     List<Double> errors_generator = new ArrayList<>();
     
     for (int i = 0; i < epochs; i++) {
       for (Vector face : faces) {
-        d.update_from_image(face);
+        // Update the discriminator weights from the real face
+        discriminator.update_from_image(face);
         
+        // Pick a random number to generate a fake face
         double z = rand.nextGaussian();
         
-        double a = d.error_from_image(face);
-        Vector b = d.error_from_noise(z);
-        Vector c = b.add(a);
-        errors_discriminator.add(c.sum());
+        // Calculate the discriminator error
+        double a = discriminator.error_from_image(face);
+        Vector b = discriminator.error_from_noise(z).add(a);
+        errors_discriminator.add(b.sum());
         
-        errors_generator.add(g.error(z, d));
+        // Calculate the generator error
+        errors_generator.add(generator.error(z, discriminator));
         
-        Vector noise = g.forward(z);
+        // Build a fake face
+        Vector noise = generator.forward(z);
         
-        d.update_from_noise(noise);
+        // Update the discriminator weights from the fake face
+        discriminator.update_from_noise(noise);
         
-        g.update(z, d);
+        // Update the generator weights from the fake face
+        generator.update(z, discriminator);
       }
     }
     
-    new Window(g, errors_discriminator, errors_generator);
+    // Create a window to show error rate and samples
+    new Window(generator, errors_discriminator, errors_generator);
   }
   
   static class Discriminator {
-    double[] weights;
+    Vector weights;
     double bias;
     
     public Discriminator() {
-      weights = new double[4];
-      for (int i = 0; i < weights.length; i++) {
-        weights[i] = rand.nextGaussian();
-      }
-      
+      weights = Vector.randomized(4);
       bias = rand.nextGaussian();
     }
     
     Vector forward(double x) {
-      Vector a = new Vector(weights).dot(x);
+      // Forward pass
+      Vector a = weights.dot(x);
       a = a.add(bias);
       return a.sigmoid();
     }
     
     double forward(Vector x) {
-      return Numpy.sigmoid(x.dot(new Vector(weights)) + bias);
+      // Forward pass
+      return sigmoid(x.dot(weights) + bias);
+    }
+    private static double sigmoid(double input) {
+      return Math.exp(input / (1d + Math.exp(input)));
     }
     
     double error_from_image(Vector image) {
       double prediction = forward(image);
+      // We want the prediction to be 1, so the error is -log(prediction)
       return -Math.log(prediction);
     }
     
     Object[] derivatives_from_image(Vector image) {
       double prediction = forward(image);
-      double[] derivatives_weights = new double[4];
-      for (int i = 0; i < derivatives_weights.length; i++) {
-        derivatives_weights[i] = -image.data[i] * (1 - prediction);
-      }
+      
+      Vector derivatives_weights = image.inverse().multiply(1 - prediction);
       double derivative_bias = -(1 - prediction);
       return new Object[] { derivatives_weights, derivative_bias };
     }
     
     void update_from_image(Vector x) {
       Object[] ders = derivatives_from_image(x);
-      double[] derivatives_weights = (double[]) ders[0];
+      Vector derivatives_weights = (Vector) ders[0];
       double derivative_bias = (double) ders[1];
-      for (int i = 0; i < weights.length; i++) {
-        weights[i] -= learning_rate * derivatives_weights[i];
-      }
+      
+      weights = weights.subtract(derivatives_weights.multiply(learning_rate));
       bias -= learning_rate * derivative_bias;
     }
     
+    // We want the prediction to be 0, so the error is -log(1-prediction)
     Vector error_from_noise(double noise) {
       Vector prediction = forward(noise);
       return prediction.subtractReverse(1).log().inverse();
@@ -113,21 +111,18 @@ public class SlantedLandRefactored {
     
     Object[] derivatives_from_noise(Vector noise) {
       double prediction = forward(noise);
-      double[] derivatives_weights = new double[4];
-      for (int i = 0; i < derivatives_weights.length; i++) {
-        derivatives_weights[i] = noise.data[i] * prediction;
-      }
+      
+      Vector derivatives_weights = noise.multiply(prediction);
       double derivative_bias = prediction;
       return new Object[] { derivatives_weights, derivative_bias };
     }
     
     void update_from_noise(Vector noise) {
       Object[] ders = derivatives_from_noise(noise);
-      double[] derivatives_weights = (double[]) ders[0];
+      Vector derivatives_weights = (Vector) ders[0];
       double derivative_bias = (double) ders[1];
-      for (int i = 0; i < weights.length; i++) {
-        weights[i] -= learning_rate * derivatives_weights[i];
-      }
+      
+      weights = weights.subtract(derivatives_weights.multiply(learning_rate));
       bias -= learning_rate * derivative_bias;
     }
   }
@@ -140,12 +135,14 @@ public class SlantedLandRefactored {
       weights = Vector.randomized(4);
       biases = Vector.randomized(4);
     }
-  
+    
+    // Forward pass
     Vector forward(double z) {
       Vector z_weights = weights.multiply(z).add(biases);
       return z_weights.sigmoid();
     }
     
+    // We want the prediction to be 0, so the error is -log(1-prediction)
     double error(double z, Discriminator discriminator) {
       Vector x = forward(z);
       double y = discriminator.forward(x);
@@ -153,15 +150,15 @@ public class SlantedLandRefactored {
     }
     
     Object[] derivatives(double z, Discriminator discriminator) {
-      double[] discriminator_weights = discriminator.weights;
+      Vector discriminator_weights = discriminator.weights;
       Vector x = forward(z);
       double y = discriminator.forward(x);
       
       double a = -(1 - y);
-      Vector b = new Vector(Numpy.multiply(a, discriminator_weights));
+      Vector b = discriminator_weights.multiply(a);
       b = b.multiply(x);
       Vector factor = b.multiply(x.subtractReverse(1));
-  
+      
       Vector derivatives_weights = factor.multiply(z);
       Vector derivative_bias = factor;
       return new Object[] { derivatives_weights, derivative_bias };
