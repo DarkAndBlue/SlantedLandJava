@@ -121,7 +121,7 @@ public class Vector {
   public Vector log() {
     double[] result = new double[data.length];
     for (int i = 0; i < data.length; i++) {
-      result[i] = Math.log(result[i]);
+      result[i] = Math.log(data[i]);
     }
     return new Vector(result);
   }

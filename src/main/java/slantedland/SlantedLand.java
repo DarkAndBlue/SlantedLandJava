@@ -102,7 +102,7 @@ public class SlantedLand {
     public static double[] log(double[] input) {
       double[] result = new double[input.length];
       for (int i = 0; i < input.length; i++) {
-        result[i] = Math.log(result[i]);
+        result[i] = Math.log(input[i]);
       }
       return result;
     }
@@ -139,7 +139,7 @@ public class SlantedLand {
   public static double[] inverse(double[] input) {
     double[] result = new double[input.length];
     for (int i = 0; i < input.length; i++) {
-      result[i] = -result[i];
+      result[i] = -input[i];
     }
     return result;
   }
@@ -512,7 +512,7 @@ public class SlantedLand {
       super.paint(graphics);
       
       double halfWidth = getWidth() / 2d - SAMPLE_PADDING * 2;
-      double heightScale = getHeight() / 4;
+      double heightScale = 30;
       double size = halfWidth / errors_discriminator.size();
       graphics.setColor(Color.blue);
       

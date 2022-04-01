@@ -57,7 +57,6 @@ class Window extends JPanel {
               double z = random.nextGaussian();
               double[] generated_image = generatorInstance.forward(z).data;
               int[] pixels = doubleValuesToPixels(generated_image);
-              
               BufferedImage image = new BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB);
               for (int i = 0; i < pixels.length; i++) {
                 image.setRGB(i % 2, i / 2, new Color(pixels[i], pixels[i], pixels[i]).getRGB());
@@ -82,7 +81,7 @@ class Window extends JPanel {
     int[] doubleValuesToPixels(double[] input) {
       int[] ints = new int[input.length];
       for (int i = 0; i < input.length; i++) {
-        ints[i] = (int) (input[i] * 255d);
+        ints[i] = (int) ((1d - input[i]) * 255d);
       }
       return ints;
     }
@@ -92,7 +91,7 @@ class Window extends JPanel {
       super.paint(graphics);
       
       double halfWidth = getWidth() / 2d - SAMPLE_PADDING * 2;
-      double heightScale = getHeight() / 4;
+      double heightScale = 50;
       double size = halfWidth / errors_discriminator.size();
       graphics.setColor(Color.blue);
       

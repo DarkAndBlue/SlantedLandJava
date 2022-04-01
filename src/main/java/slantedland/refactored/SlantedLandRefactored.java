@@ -41,12 +41,9 @@ public class SlantedLandRefactored {
         double z = rand.nextGaussian();
         
         double a = d.error_from_image(face);
-        double[] b = d.error_from_noise(z);
-        double[] c = new double[b.length];
-        for (int j = 0; j < b.length; j++) {
-          c[j] = a + b[j];
-        }
-        errors_discriminator.add(Numpy.sum(c));
+        Vector b = d.error_from_noise(z);
+        Vector c = b.add(a);
+        errors_discriminator.add(c.sum());
         
         errors_generator.add(g.error(z, d));
         
@@ -74,12 +71,10 @@ public class SlantedLandRefactored {
       bias = rand.nextGaussian();
     }
     
-    double[] forward(double x) {
-      double[] a = Numpy.dot(x, weights);
-      for (int i = 0; i < a.length; i++) {
-        a[i] += bias;
-      }
-      return Numpy.sigmoid(a);
+    Vector forward(double x) {
+      Vector a = new Vector(weights).dot(x);
+      a = a.add(bias);
+      return a.sigmoid();
     }
     
     double forward(Vector x) {
@@ -111,9 +106,9 @@ public class SlantedLandRefactored {
       bias -= learning_rate * derivative_bias;
     }
     
-    double[] error_from_noise(double noise) {
-      double[] prediction = forward(noise);
-      return Numpy.inverse(Numpy.log(Numpy.subtractReverse(1, prediction)));  // ndarray
+    Vector error_from_noise(double noise) {
+      Vector prediction = forward(noise);
+      return prediction.subtractReverse(1).log().inverse();
     }
     
     Object[] derivatives_from_noise(Vector noise) {

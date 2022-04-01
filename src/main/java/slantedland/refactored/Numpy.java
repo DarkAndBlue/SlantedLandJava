@@ -19,7 +19,7 @@ class Numpy {
   public static double[] log(double[] input) {
     double[] result = new double[input.length];
     for (int i = 0; i < input.length; i++) {
-      result[i] = Math.log(result[i]);
+      result[i] = Math.log(input[i]);
     }
     return result;
   }
@@ -68,7 +68,7 @@ class Numpy {
   public static double[] inverse(double[] input) {
     double[] result = new double[input.length];
     for (int i = 0; i < input.length; i++) {
-      result[i] = -result[i];
+      result[i] = -input[i];
     }
     return result;
   }
