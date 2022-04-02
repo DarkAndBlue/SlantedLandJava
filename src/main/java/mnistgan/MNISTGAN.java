@@ -5,31 +5,78 @@ import slantedland.refactored.Vector;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class MNISTGAN extends JFrame {
-  public static void main(String[] args) {
+  /*
+  INFO: Goal is it to write a GAN to generate images based on the MNIST dataset.
+   */
+  
+  public static void main(String[] args) throws InterruptedException {
     new MNISTGAN();
   }
   
-  public MNISTGAN() {
+  long sleepTime = 10;
+  
+  public MNISTGAN() throws InterruptedException {
 //    setTitle("MNIST GENERATION");
     setDefaultCloseOperation(EXIT_ON_CLOSE);
-    
-    setSize(1800, 600);
+    setLayout(null);
+    setSize(1800, 800);
     
     Scene scene = new Scene();
-    scene.setSize(1600, 800);
+    scene.setSize(1800, 600);
     add(scene);
     
     setVisible(true);
     setLocationRelativeTo(null);
     
+    JSlider slider = new JSlider();
+    add(slider);
+    slider.setSize(getWidth() - 20, 60);
+    slider.setMaximum(120);
+    slider.setMinimum(0);
+    slider.setValue((int) sleepTime);
+    slider.setLocation(0, scene.getY() + scene.getHeight());
+    slider.addChangeListener(e -> sleepTime = slider.getValue());
+  
+    JSlider sliderInput = new JSlider();
+    add(sliderInput);
+    sliderInput.setSize(getWidth() - 20, 60);
+    sliderInput.setMaximum(1000);
+    sliderInput.setMinimum(0);
+    sliderInput.setValue(sliderInput.getMaximum() / 2);
+    sliderInput.setLocation(0, slider.getY() + slider.getHeight());
+    sliderInput.addChangeListener(e -> scene.input = (double) sliderInput.getValue() / sliderInput.getMaximum());
+  
+    JSlider sliderLearningRate = new JSlider();
+    add(sliderLearningRate);
+    sliderLearningRate.setSize(getWidth() - 20, 60);
+    sliderLearningRate.setMaximum(10000);
+    sliderLearningRate.setMinimum(0);
+    sliderLearningRate.setValue(sliderLearningRate.getMaximum() / 4);
+    sliderLearningRate.setLocation(0, sliderInput.getY() + sliderInput.getHeight());
+    sliderLearningRate.addChangeListener(e -> Scene.learning_rate = (double) sliderLearningRate.getValue() / (sliderLearningRate.getMaximum() * 8d));
+    
+    new Thread(() -> {
+      while (true) {
+        try {
+          Thread.sleep(32);
+        } catch (InterruptedException e) {
+          e.printStackTrace();
+        }
+        setTitle("learningRate " + Scene.learning_rate);
+        scene.repaint();
+      }
+    }).start();
+    
     while (true) {
-      scene.repaint();
+      if(sleepTime != 0)
+        Thread.sleep(sleepTime);
+      scene.updateNeuralNetworks();
     }
   }
   
@@ -40,8 +87,9 @@ public class MNISTGAN extends JFrame {
     static int targetsPerEpoch = 5;
     Discriminator discriminator;
     Generator generator;
-    List<Double> discriminatorErrors = new ArrayList<>();
-    List<Double> generatorErrors = new ArrayList<>();
+    List<Double> discriminatorErrors = new CopyOnWriteArrayList<>();
+    List<Double> generatorErrors = new CopyOnWriteArrayList<>();
+    double input;
     
     public Scene() {
       discriminator = new Discriminator();
@@ -57,13 +105,12 @@ public class MNISTGAN extends JFrame {
       super.paint(graphics);
       updateNeuralNetworks();
       
-      double input = Math.random();
-      Vector forward = generator.forward(input);
+      Vector forward = generator.predict(input);
       
       for (int x = 0; x < imageSize; x++) {
         for (int y = 0; y < imageSize; y++) {
           int i = x + y * imageSize;
-          int brightness = (int) (255d - forward.data[i] * 255d);
+          int brightness = (int) (forward.data[i] * 255d);
           drawingImage.setRGB(x, y, new Color(brightness, brightness, brightness).getRGB());
         }
       }
@@ -85,17 +132,19 @@ public class MNISTGAN extends JFrame {
       double sizeX = getWidth() / 3d / maxErrorSampleSize;
       int yOffset = avgY(list);
       
-      int[] x = new int[list.size()];
-      int[] y = new int[list.size()];
+      Double[] values = list.toArray(new Double[0]);
       
-      for (int i = 0; i < list.size(); i++) {
-        double value = list.get(i);
+      int[] x = new int[values.length];
+      int[] y = new int[values.length];
+      
+      for (int i = 0; i < values.length; i++) {
+        double value = values[i];
         
         x[i] = (int) (i * sizeX) + xOffset;
         y[i] = (int) ((value - yOffset) / yScale) + getHeight() / 2;
       }
       
-      graphics.drawPolyline(x, y, x.length);
+      graphics.drawPolyline(x, y, values.length);
     }
     
     int avgY(List<Double> list) {
@@ -109,7 +158,6 @@ public class MNISTGAN extends JFrame {
     void updateNeuralNetworks() {
       for (int j = 0; j < targetsPerEpoch; j++) {
         Vector target = generateTarget();
-        // train the discriminator on real images
         discriminator.trainOnTarget(target);
         
         // Pick a random number to generate a fake face
@@ -123,7 +171,7 @@ public class MNISTGAN extends JFrame {
         generatorErrors.add(generator.calculateError(noise, discriminator));
         
         // Build a fake face
-        Vector generated = generator.forward(noise);
+        Vector generated = generator.predict(noise);
         
         // Update the discriminator weights from the fake face
         discriminator.trainOnFake(generated);
@@ -137,10 +185,16 @@ public class MNISTGAN extends JFrame {
     static Vector generateTarget() {
       BufferedImage image = new BufferedImage(imageSize, imageSize, BufferedImage.TYPE_INT_BGR);
       Graphics2D graphics = image.createGraphics();
-      graphics.setColor(Color.black);
-      graphics.fillRect(0, 0, imageSize, imageSize);
       graphics.setColor(Color.white);
-      graphics.drawLine(random(), random(), imageSize + random(), imageSize + random());
+      graphics.fillRect(0, 0, imageSize, imageSize);
+      graphics.setColor(Color.black);
+      int x = 0;
+      int width = imageSize;
+      if (Math.random() > 0.5) {
+        x = imageSize;
+        width = 0;
+      }
+      graphics.drawLine(x, 0, width, imageSize);
       
       double[] values = new double[imageSize * imageSize];
       for (int j = 0; j < imageSize * imageSize; j++) {
@@ -148,10 +202,6 @@ public class MNISTGAN extends JFrame {
         values[j] = new Color(color).getRed() / 255d;
       }
       return new Vector(values);
-    }
-    
-    static int random() {
-      return ThreadLocalRandom.current().nextInt(-2, 2);
     }
     
     static class Discriminator {
@@ -162,15 +212,17 @@ public class MNISTGAN extends JFrame {
         weights = Vector.randomized(imageSize * imageSize);
         bias = random.nextGaussian();
       }
-  
+      
       // Forward pass
-      double forward(Vector x) {
-        return sigmoid(x.dot(weights) + bias);
+      double predict(Vector input) {
+        return sigmoid(input.dot(weights) + bias);
       }
       
       void trainOnTarget(Vector targets) {
-        double prediction = forward(targets);
+        // should be high 1
+        double prediction = predict(targets);
         
+        // dw = -target * (1 - prediction)
         Vector derivatives_weights = targets.inverse().multiply(1 - prediction);
         double derivative_bias = -(1 - prediction);
         
@@ -180,7 +232,8 @@ public class MNISTGAN extends JFrame {
       
       void trainOnFake(Vector generated) {
         // prediction on how real the generated image is
-        double prediction = forward(generated);
+        // should be low 0
+        double prediction = predict(generated);
         
         Vector derivatives_weights = generated.multiply(prediction);
         double derivative_bias = prediction;
@@ -190,9 +243,9 @@ public class MNISTGAN extends JFrame {
       }
       
       public double calculateError(Vector target, double noise, Generator generator) {
-        Vector generated = generator.forward(noise);
-        double predictionFake = forward(generated);
-        double predictionReal = 1 - forward(target);
+        Vector generated = generator.predict(noise);
+        double predictionFake = predict(generated);
+        double predictionReal = 1 - predict(target);
         
         return predictionReal + predictionFake;
       }
@@ -208,22 +261,22 @@ public class MNISTGAN extends JFrame {
       }
       
       // Forward pass
-      Vector forward(double noise) {
+      Vector predict(double noise) {
         Vector z_weights = weights.multiply(noise).add(biases);
         return z_weights.sigmoid();
       }
       
       // We want the prediction to be 0, so the error is -log(1-prediction)
       double calculateError(double z, Discriminator discriminator) {
-        Vector generated = forward(z);
-        double y = discriminator.forward(generated);
+        Vector generated = predict(z);
+        double y = discriminator.predict(generated);
         return -Math.log(y);
       }
       
       void train(double noiseInput, Discriminator discriminator) {
         Vector discriminatorWeights = discriminator.weights;
-        Vector generatorPrediction = forward(noiseInput);
-        double discriminatorPrediction = discriminator.forward(generatorPrediction);
+        Vector generatorPrediction = predict(noiseInput);
+        double discriminatorPrediction = discriminator.predict(generatorPrediction);
         
         double a = -(1 - discriminatorPrediction);
         Vector b = discriminatorWeights.multiply(a);
